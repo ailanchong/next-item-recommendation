@@ -9,7 +9,8 @@ copyed and moved from:
 
 from __future__ import print_function
 import tensorflow as tf
-
+import numpy as np 
+tf.nn.nce_loss()
 def normalize(inputs, 
               epsilon = 1e-8,
               scope="ln",
@@ -140,7 +141,7 @@ def positional_encoding(inputs,
         # First part of the PE function: sin and cos argument
         position_enc = np.array([
             [pos / np.power(10000, 2.*i/num_units) for i in range(num_units)]
-            for pos in range(T)])
+            for pos in range(T)],dtype="float32")
 
         # Second part, apply the cosine to even columns and sin to odds.
         position_enc[:, 0::2] = np.sin(position_enc[:, 0::2])  # dim 2i
@@ -171,13 +172,14 @@ def Mask(inputs, seq_len, mode='key_mask'):
     if seq_len == None:
         return inputs
     else:
-        head_nums = inputs.shape[0] / seq_len.shape[0]
-        querys_len = inputs.shape[1]
-        keys_len = inputs.shape[2]
+        head_nums = inputs.shape.as_list()[0] / seq_len.shape.as_list()[0]
+        querys_len = inputs.shape.as_list()[1]
+        keys_len = inputs.shape.as_list()[2]
         if mode == "key_mask":
             mask = tf.cast(tf.sequence_mask(seq_len,maxlen=keys_len), tf.float32)
             mask = tf.expand_dims(mask, 1)
             mask = tf.tile(mask, [head_nums, querys_len, 1])
+            
             return inputs - (1 - mask) * 1e12
         elif mode == 'query_mask':
             mask = tf.cast(tf.sequence_mask(seq_len,maxlen=querys_len), tf.float32)

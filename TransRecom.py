@@ -2,10 +2,10 @@ import tensorflow as tf
 import numpy as np
 from tf_utils import *
 class TransRecom:
-    def __init__(self, batch_size, seq_len, embed_size, item_size, num_sampled=0, num_blocks=1, num_heads=4,  
+    def __init__(self, batch_size, maxlen, embed_size, item_size, num_sampled=0, num_blocks=1, num_heads=4,  
                  learning_rate=0.001, dropout_rate=0.0, is_training=False):
         self.batch_size = batch_size
-        self.seq_len = seq_len
+        self.maxlen = maxlen
         self.num_sampled = num_sampled
         self.item_size = item_size
         self.embed_size = embed_size
@@ -15,7 +15,7 @@ class TransRecom:
         self.num_blocks = num_blocks
         self.num_heads = num_heads
 
-        self.input_x = tf.placeholder(tf.int32, [self.batch_size, self.seq_len], name="input_x")
+        self.input_x = tf.placeholder(tf.int32, [self.batch_size, self.maxlen], name="input_x")
         self.input_y = tf.placeholder(tf.int32, [self.batch_size,1], name="input_y")
         self.keys_len = tf.placeholder(tf.int32,[self.batch_size], name="keys_len")
         self.querys_len = tf.placeholder(tf.int32, [self.batch_size], name="querys_len")
@@ -129,9 +129,9 @@ class TransRecom:
                 self.neg_logits = tf.layers.dense(self.negative_y, 1, name="dense_logit", reuse=True)
 
     def cal_loss(self):
-        pos_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(self.pos_logits),logits=self.pos_logits)
+        self.pos_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(self.pos_logits),logits=self.pos_logits))
         neg_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.zeros_like(self.neg_logits),logits=self.neg_logits)
-        self.loss = tf.reduce_mean(pos_loss) + tf.reduce_mean(neg_loss)
+        self.loss = self.pos_loss + tf.reduce_mean(neg_loss)
 
     def train(self):   
         self.train_op = tf.contrib.layers.optimize_loss(self.loss, global_step=self.global_step, learning_rate=self.learning_rate, optimizer="Adam")
@@ -139,29 +139,28 @@ class TransRecom:
 
 def test():
     batch_size = 32
-    seq_len = 10
+    maxlen = 10
     embed_size = 100
     item_size = 128
     num_sampled = 5
 
-    trans = TransRecom(batch_size=32, seq_len=10, embed_size=100, item_size=128, num_sampled=5, is_training=True)
+    trans = TransRecom(batch_size=32, maxlen=10, embed_size=100, item_size=128, num_sampled=5, is_training=True)
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         for i in range(100):
-            input_x = np.ones([batch_size, seq_len])
+            input_x = np.ones([batch_size, maxlen])
             input_y = np.ones([batch_size, 1])
             querys_len = np.ones([batch_size])*5
             sampled_y = np.ones([batch_size*num_sampled, 1]) * 2
 
             #recurrIntereNet.losses, recurrIntereNet.train_op            
-            losses,_ = sess.run([trans.loss, trans.train_op],feed_dict={
+            loss = sess.run(trans.pos_loss,feed_dict={
                                              trans.input_x:input_x,
                                              trans.input_y:input_y,
-                                             trans.sampled_y:sampled_y,
                                              trans.querys_len:querys_len,
                                              trans.keys_len:querys_len
 })
-            print(losses)    
+            print(loss)    
 
 if __name__ == "__main__":
     test()
